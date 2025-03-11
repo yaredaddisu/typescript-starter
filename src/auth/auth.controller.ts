@@ -1,33 +1,24 @@
-import { Controller, Get, Query, NotFoundException, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UnauthorizedException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { LoginDto } from './dto/login.dto';
 
+@ApiTags('Authentication') // Group endpoints under "Authentication" in Swagger
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Get()
-  //@UseGuards(JwtAuthGuard)  // Use the JwtAuthGuard for this route
-
-  async authenticate(@Query('chatId') chatId: string, @Query('phone') phone: string) {
-    const user = await this.authService.findByChatIdAndPhone(chatId, phone);
+  @Post('signin')
+  @ApiOperation({ summary: 'User Sign-In' }) // Description of the operation
+  @ApiResponse({ status: 200, description: 'Successful login, returns JWT token' })
+  @ApiResponse({ status: 401, description: 'Unauthorized, invalid credentials' })
+  async login(@Body() loginDto: LoginDto) {
+    const user = await this.authService.validateUser(loginDto.email, loginDto.password);
     
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Generate JWT token
-    const token = await this.authService.generateToken(user);
-
-    return {
-      success: true,
-      token,  // Return the JWT token
-      user: {
-        username: user.username,
-        phone: user.phoneNumber,
-        chatId: user.chatId,
-        userId: user._id,
-      },
-    };
+    return this.authService.login(user);
   }
 }

@@ -4,14 +4,17 @@ import { Bet } from './bets.schema';
 import { CreateBetDto } from './create-bet.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Types } from 'mongoose';
+import { ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
  
 @Controller('bets')
 export class BetsController {
     constructor(private readonly betsService: BetsService) {}
 
-    // Create a new bet
-    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth('access-token') // Must match the name in .addBearerAuth()
+    @UseGuards(JwtAuthGuard) // Applies the JWT authentication guard
     @Post()
+    @ApiOkResponse({ description: 'Bet created successfully', type: CreateBetDto })
+
     async createBet(@Request() req, @Body() createBetDto: CreateBetDto) {
         const userId = req.user.userId; // Extract userId from the JWT payload
         console.log(req)

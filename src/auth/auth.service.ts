@@ -1,23 +1,82 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { JwtService } from '@nestjs/jwt';  // Import JwtService
-import { User } from 'src/users/user.schema';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+ 
+import * as bcrypt from 'bcrypt';
+import { AdminsService } from 'src/admins/admins.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectModel(User.name) private readonly userModel: Model<User>,
-    private readonly jwtService: JwtService,  // Inject JwtService
+    private adminService: AdminsService,
+    private jwtService: JwtService
   ) {}
-
-  async findByChatIdAndPhone(chatId: string, phone: string): Promise<User | null> {
-    return this.userModel.findOne({ chatId, phoneNumber: phone }).exec();
+  async validateUser(email: string, pass: string): Promise<any> {
+    const user = await this.adminService.findOneByEmail(email);
+    console.log("Found user in validateUser:", user);
+  
+    if (user) {
+      // Check if the password matches
+      const passwordMatch = await bcrypt.compare(pass, user.password);
+      console.log("Password match result:", passwordMatch);
+  
+      if (passwordMatch) {
+        // Exclude password from user data and return
+        const { password, ...result } = user;
+        return result;  // Return the user without the password
+      }
+    }
+  
+    return null;  // Return null if user not found or password mismatch
   }
-
-  async generateToken(user: User): Promise<string> {
-    // Generate the JWT token with user data
-    const payload = { userId: user._id, chatId: user.chatId, phone: user.phoneNumber };
-    return this.jwtService.sign(payload);  // Generate the JWT token
+  
+  async login(user: any) {
+    try {
+      console.log("User passed to login method:", user);
+  
+      // Check if user is valid
+      if (!user) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+  
+      // Extract necessary user data
+      const { email, username, phone, fullName, _id } = user._doc;
+  
+      // Prepare the payload, including user ID in 'sub'
+      const payload = { 
+        email, 
+        username, 
+        phone, 
+        fullName, 
+        sub: _id // The 'sub' field represents the user ID in the token
+      };
+  
+      console.log("Payload to sign:", payload);
+  
+      // Sign the payload with the JWT service
+      const token = this.jwtService.sign(payload, {
+        secret: process.env.JWT_SECRET, // Ensure the secret is securely stored in an environment variable
+        expiresIn: '1h' // Set token expiration time (optional)
+      });
+  
+      // Return the success response with token and user details
+      return { 
+        success: true,
+        message: 'Login successful',
+        user: { email, username, phone, fullName },
+        token
+      };
+    } catch (error) {
+      console.error('Error occurred during login:', error);
+  
+      // Return structured error response
+      return { 
+        success: false,
+        message: 'An error occurred during login.',
+        data: error.message
+      };
+    }
   }
+  
+  
+  
 }

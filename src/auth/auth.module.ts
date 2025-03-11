@@ -1,25 +1,33 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { AuthService } from './auth.service';
-import { AuthSchema, User } from './auth.schema';
-import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
- 
+import { PassportModule } from '@nestjs/passport';
+import { AuthService } from './auth.service';
+import { LocalStrategy } from './strategies/local.strategy';  
+import { UsersModule } from '../users/users.module';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { AuthController } from './auth.controller';
+import { AdminsModule } from 'src/admins/admins.module';  // ✅ Import the module, NOT the service
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: User.name, schema: AuthSchema },
-      ]),
-
-      JwtModule.register({
-        secret: 'your_secret_key', // Make sure this is the same secret used to sign the token
-        signOptions: { expiresIn: '1h' },
+    PassportModule,
+    UsersModule,
+    AdminsModule,  // ✅ Correctly import AdminsModule instead of AdminsService
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get('JWT_SECRET'),
+        signOptions: { expiresIn: '8h' },
       }),
+      inject: [ConfigService],
+    }),
   ],
-  providers: [AuthService],
-  exports: [AuthService],
-  controllers: [AuthController],  // Register the controller here
-
+  providers: [
+    AuthService,
+    LocalStrategy,  
+    JwtStrategy      
+  ],
+  controllers: [AuthController],
 })
 export class AuthModule {}
